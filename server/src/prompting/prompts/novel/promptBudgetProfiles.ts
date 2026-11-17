@@ -28,9 +28,13 @@ export const NOVEL_PROMPT_BUDGETS = {
   chapterSummary: 1000,
 } as const;
 
-const VOLUME_STRATEGY_OUTPUT_TOKEN_FLOOR = 1_800;
-const VOLUME_STRATEGY_OUTPUT_TOKENS_PER_VOLUME = 160;
-const VOLUME_STRATEGY_OUTPUT_TOKEN_CEILING = 5_200;
+// 思考型模型在流式请求下会先烧掉上千 token 的思考预算，且这部分内容不会出现在
+// delta 里（只在 usage.reasoning_tokens 里可见），项目侧的 finish_reason=length
+// 判定就会误报「token 上限不足」。实测 gemini-4-hydrogen-sonar 单次思考 1300-5500，
+// 而且流式下无法通过 reasoning_effort / thinking 参数关闭，只能用预算兜住。
+const VOLUME_STRATEGY_OUTPUT_TOKEN_FLOOR = 6_000;
+const VOLUME_STRATEGY_OUTPUT_TOKENS_PER_VOLUME = 320;
+const VOLUME_STRATEGY_OUTPUT_TOKEN_CEILING = 12_000;
 
 export function resolveVolumeStrategyOutputTokenBudget(expectedVolumeCount: number): number {
   const normalizedVolumeCount = Number.isFinite(expectedVolumeCount)

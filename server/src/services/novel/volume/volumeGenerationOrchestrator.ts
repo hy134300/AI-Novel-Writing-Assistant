@@ -268,7 +268,9 @@ async function generateSkeleton(params: {
       provider: options.provider,
       model: options.model,
       temperature: options.temperature ?? 0.35,
-      maxTokens: Math.min(6_000, 800 + targetVolumeCount * 520),
+      // 与 strategy 同样的问题：思考型模型流式请求下要先烧上千 token 的思考预算，
+      // 6000 的上限在 gemini-4-hydrogen-sonar 上不够用，会被截断成 output_budget_exhausted。
+      maxTokens: Math.min(12_000, 3_000 + targetVolumeCount * 800),
       novelId: document.novelId,
       taskId: options.taskId,
       stage: "volume_strategy",
