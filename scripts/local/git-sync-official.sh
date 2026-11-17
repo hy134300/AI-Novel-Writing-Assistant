@@ -22,9 +22,9 @@ if ! git rev-parse --git-dir >/dev/null 2>&1; then
 fi
 
 current=$(git symbolic-ref --short HEAD 2>/dev/null || echo "")
-if [ "$current" != "$BRANCH" ]; then
-  err "当前在 ${current:-detached HEAD}，不是 $BRANCH。"
-  info "先执行：git switch $BRANCH"
+if [ "$current" != "${BRANCH}" ]; then
+  err "当前在 ${current:-detached HEAD}，不是 ${BRANCH}。"
+  info "先执行：git switch ${BRANCH}"
   exit 1
 fi
 
@@ -53,7 +53,7 @@ info "官方新增 $behind 个提交，开始 rebase…"
 if git rebase "$UPSTREAM_REF"; then
   ok "rebase 完成。"
   info "${DIM}改动已搬到最新官方基线上，commit hash 变了。${NC}"
-  info "${DIM}推送到 fork：git push --force-with-lease origin $BRANCH${NC}"
+  info "${DIM}推送到 fork：git push --force-with-lease origin ${BRANCH}${NC}"
 else
   warn "rebase 遇到冲突，需要你手动解决。"
   info ""

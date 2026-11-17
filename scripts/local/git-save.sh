@@ -25,9 +25,9 @@ fi
 msg="$1"
 
 current=$(git symbolic-ref --short HEAD 2>/dev/null || echo "")
-if [ "$current" != "$BRANCH" ]; then
-  err "当前在 ${current:-detached HEAD}，不是 $BRANCH。"
-  info "先执行：git switch $BRANCH"
+if [ "$current" != "${BRANCH}" ]; then
+  err "当前在 ${current:-detached HEAD}，不是 ${BRANCH}。"
+  info "先执行：git switch ${BRANCH}"
   exit 1
 fi
 
@@ -53,16 +53,16 @@ info ""
 info "── 同步官方 ──"
 if ! bash "$ROOT/scripts/local/git-sync-official.sh"; then
   err "同步失败，改动仍在本地 commit 里，未推送。"
-  info "处理完冲突后再执行：git save \"$msg\"  或  git push --force-with-lease origin $BRANCH"
+  info "处理完冲突后再执行：git save \"$msg\"  或  git push --force-with-lease origin ${BRANCH}"
   exit 1
 fi
 
 # ── 3. 推送 ──────────────────────────────────────────────
 info ""
 info "── 推送到 fork ──"
-if git push --force-with-lease origin "$BRANCH"; then
-  ok "已推送到 origin/$BRANCH。"
-  info "${DIM}https://github.com/hy134300/AI-Novel-Writing-Assistant/tree/$BRANCH${NC}"
+if git push --force-with-lease origin "${BRANCH}"; then
+  ok "已推送到 origin/${BRANCH}。"
+  info "${DIM}https://github.com/hy134300/AI-Novel-Writing-Assistant/tree/${BRANCH}${NC}"
 else
   err "推送失败。若是 --force-with-lease 拒绝，说明远端有别人的新提交，先 git fetch origin 看一眼。"
   exit 1
