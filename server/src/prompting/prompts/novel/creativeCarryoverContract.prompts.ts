@@ -35,7 +35,9 @@ export const creativeCarryoverContractPrompt: PromptAsset<
   outputSchema: creativeCarryoverContractDraftSchema,
   structuredOutputHint: {
     mode: "auto",
-    note: "openingChapters 必须恰好覆盖第 1、2、3 章；续写只填 continuationFocus，参考创作只填 adaptationFocus。",
+    // 示例里的两个焦点字段必须留空：mode 是动态的，写死某一侧的值会让模型在
+    // 另一种模式下照抄，然后被 assertCreativeCarryoverFocusForMode 判成越界字段。
+    note: "openingChapters 必须恰好覆盖第 1、2、3 章。续写模式只填 continuationFocus、adaptationFocus 必须为 null；参考创作模式只填 adaptationFocus、continuationFocus 必须为 null。绝对不要同时填两个。",
     example: {
       sourceTraits: ["原书特点示例"],
       bookRealization: ["本书如何落地示例"],
@@ -45,20 +47,21 @@ export const creativeCarryoverContractPrompt: PromptAsset<
         { chapterNumber: 3, direction: "第三章方向" },
       ],
       basis: [{ sectionKey: "plot_structure", fieldKeys: ["mainlineSummary"], summary: "依据摘要" }],
-      continuationFocus: {
-        finalCharacterStates: ["主角终局状态"],
-        unfinishedThreads: ["未完线索"],
-      },
+      continuationFocus: null,
       adaptationFocus: null,
     },
   },
   postValidate: (output, input) => {
-    assertCreativeCarryoverFocusForMode(input.mode, output);
-    return {
+    // 先按模式清掉不属于本模式的焦点字段，再校验。模型偶尔会把另一个模式的
+    // 字段一并返回（示例里两个字段曾同时出现），直接判错会让整份方案白跑；
+    // 清掉多余字段后仍能拦住「必需的那个字段缺失」这一真实错误。
+    const normalized = {
       ...output,
       continuationFocus: input.mode === "continuation" ? (output.continuationFocus ?? null) : null,
       adaptationFocus: input.mode === "adaptation" ? (output.adaptationFocus ?? null) : null,
     };
+    assertCreativeCarryoverFocusForMode(input.mode, normalized);
+    return normalized;
   },
   render: (input) => {
     const isContinuation = input.mode === "continuation";
