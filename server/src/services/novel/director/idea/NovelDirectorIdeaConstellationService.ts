@@ -15,8 +15,12 @@ import {
 } from "./ideaContext";
 import { marketRadarService } from "../../../../modules/marketRadar/application/MarketRadarService";
 
-const CONSTELLATION_OPTIONS_MAX_TOKENS = 5_000;
-const CONSTELLATION_COMPOSE_MAX_TOKENS = 800;
+// 思考型模型会先花几千 token 产出 reasoning，再开始写正文。原来的 5000 / 800
+// 在 deepseek-v4.1-flash 这类模型上会被思考全部吃光（实测 output=5000、reasoning=5000，
+// 正文 0 字，finish_reason=length），直接报 output_budget_exhausted。这里给足余量：
+// 选项要吐 35 条 JSON，compose 要吐一段完整构想，都要在 reasoning 之后还有空间。
+const CONSTELLATION_OPTIONS_MAX_TOKENS = 12_000;
+const CONSTELLATION_COMPOSE_MAX_TOKENS = 4_000;
 const CONSTELLATION_RETRY_TEMPERATURE = 0.25;
 
 function optionsTemperature(input: DirectorIdeaConstellationOptionsRequest): number {
