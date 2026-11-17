@@ -28,6 +28,11 @@ const STRUCTURED_PROBE_SCHEMA = z.object({
   status: z.literal("ok"),
 });
 
+// 思考型模型会先消耗输出预算产出 reasoning，再写正文。16 个 token 在简单
+// 问候语上偶尔能过，prompt 稍长就被 reasoning 吃光，正文为空，于是把一条
+// 可用的优质渠道判成"返回了空正文"。128 给思考留足够余量。
+const PLAIN_PROBE_MAX_TOKENS = 128;
+
 export interface ConnectivityProbeStatus {
   ok: boolean;
   latency: number | null;
@@ -64,11 +69,17 @@ function toErrorMessage(error: unknown): string {
   return "连接测试失败。";
 }
 
-function getProtocolCandidates(preferred?: ModelRouteRequestProtocol): ModelRouteRequestProtocol[] {
+function getProtocolCandidates(
+  provider: LLMProvider,
+  preferred?: ModelRouteRequestProtocol,
+): ModelRouteRequestProtocol[] {
   if (preferred === "openai_compatible" || preferred === "anthropic") {
     return [preferred, preferred === "anthropic" ? "openai_compatible" : "anthropic"];
   }
-  return ["openai_compatible", "anthropic"];
+  // Anthropic Messages 是一条独立协议，只有 anthropic 渠道值得回退到它。
+  // 对其它渠道盲试 /v1/messages 会让网关返回的协议级拒绝替换掉真正的失败原因
+  // （例如 key 错误、模型不存在），把可诊断的错误变成不可诊断的错误。
+  return provider === "anthropic" ? ["anthropic", "openai_compatible"] : ["openai_compatible"];
 }
 
 function getStructuredFormatCandidates(input: {
@@ -112,7 +123,7 @@ async function testPlainConnection(input: {
       authMode: input.authMode,
       model: input.model,
       temperature: 0.1,
-      maxTokens: 16,
+      maxTokens: PLAIN_PROBE_MAX_TOKENS,
       requestProtocol: input.requestProtocol,
     });
     const llm = await getLLM(input.provider, {
@@ -121,7 +132,7 @@ async function testPlainConnection(input: {
       authMode: input.authMode,
       model: resolved.model,
       temperature: 0.1,
-      maxTokens: 16,
+      maxTokens: PLAIN_PROBE_MAX_TOKENS,
       requestProtocol: resolved.requestProtocol,
     });
     const start = Date.now();
@@ -305,7 +316,7 @@ async function testConnection(input: {
   let plain: LLMConnectivityStatus | null = null;
   let structured: LLMConnectivityStatus | null = null;
   if (probeMode === "plain" || probeMode === "both") {
-    for (const requestProtocol of getProtocolCandidates(input.requestProtocol)) {
+    for (const requestProtocol of getProtocolCandidates(input.provider, input.requestProtocol)) {
       plain = await testPlainConnection({ ...input, requestProtocol });
       if (plain.ok) {
         break;
@@ -313,7 +324,7 @@ async function testConnection(input: {
     }
   }
   if (probeMode === "structured" || probeMode === "both") {
-    for (const requestProtocol of getProtocolCandidates(input.requestProtocol)) {
+    for (const requestProtocol of getProtocolCandidates(input.provider, input.requestProtocol)) {
       for (const structuredResponseFormat of getStructuredFormatCandidates({
         provider: input.provider,
         model: input.model,
