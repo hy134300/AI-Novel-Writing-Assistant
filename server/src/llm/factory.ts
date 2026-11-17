@@ -128,6 +128,14 @@ function normalizeProviderAuthMode(value: unknown): ProviderAuthMode {
   return value === "x-api-key" || value === "none" ? value : "bearer";
 }
 
+// 自定义渠道（自建网关/中转）上的思考型模型，在流式请求下会先消耗 1–3k token 的
+// reasoning，而本项目各业务阶段的输出预算常量按非思考模型写死（1.4k–6k），于是正文
+// 还没开始生成就撞到 finish_reason=length，被上层报成 output_budget_exhausted。
+// 实测这类渠道的思考在流式下关不掉（reasoning_effort / thinking 参数都无效），
+// 所以只能在输出预算上兜底。内置渠道保持原样，避免影响官方既有取舍。
+const CUSTOM_CHANNEL_OUTPUT_FLOOR_TRIGGER = 1_000;
+const CUSTOM_CHANNEL_OUTPUT_FLOOR = 12_000;
+
 function normalizeProviderSecret(secret: ProviderSecret): ProviderSecret {
   return {
     key: normalizeOptionalText(secret.key),
@@ -342,6 +350,15 @@ export async function resolveLLMClientOptions(
       ?? (automaticTextBudget == null ? effectiveMaxTokens : automaticTextBudget + reasoningReserveTokens);
     effectiveMaxTokens = Math.min(effectiveMaxTokens, capability.maxOutputTokens);
     if (beforeEndpoint > capability.maxOutputTokens) source = "endpoint";
+  }
+  // 自定义渠道兜底：小预算（探测用 128/512 不受影响）一律抬到能覆盖思考开销的下限。
+  if (
+    !isBuiltInProvider(resolvedProvider)
+    && typeof effectiveMaxTokens === "number"
+    && effectiveMaxTokens >= CUSTOM_CHANNEL_OUTPUT_FLOOR_TRIGGER
+    && effectiveMaxTokens < CUSTOM_CHANNEL_OUTPUT_FLOOR
+  ) {
+    effectiveMaxTokens = CUSTOM_CHANNEL_OUTPUT_FLOOR;
   }
   const baseModelKwargs = options.modelKwargs ?? {};
   const reasoningBehavior = resolveProviderReasoningBehavior({
